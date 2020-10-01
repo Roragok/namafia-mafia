@@ -12,34 +12,35 @@
       </b-link>
 
       <b-list-group v-for="(votes, index) in voteCounts"
-          :key="index"
-          >
-          <b-list-group-item v-b-toggle="'highlight-collapse-' + index" v-if="votes.vote != 'Not Voting'" class="d-flex justify-content-between align-items-center">
-            {{ votes.vote }}
-            <b-badge variant="danger" pill>{{ votes.voters.length }}</b-badge>
-          </b-list-group-item>
-          <b-collapse class="highlight-vote-wrapper" :id="'highlight-collapse-'+ index">
-            <b-card>
-              <ul>
-                <li v-for="(player) in votes.voters" :key="player">
-                  {{ player }}
-                </li>
-              </ul>
-            </b-card>
-          </b-collapse>
-          <b-list-group-item v-if="notVoting" class="d-flex justify-content-between align-items-center" v-b-toggle="'highlight-collapse-notVoting'">
-            {{ "Not Voting" }}
-            <b-badge variant="danger" pill>{{ notVotingArray.length}}</b-badge>
-          </b-list-group-item>
-          <b-collapse v-if="notVoting" class="highlight-vote-wrapper" :id="'highlight-collapse-notVoting'">
-            <b-card>
-              <ul>
-                <li v-for="(player) in notVotingArray" :key="player">
-                  {{ player }}
-                </li>
-              </ul>
-            </b-card>
-          </b-collapse>
+        :key="index"
+        >
+        <b-list-group-item v-b-toggle="'highlight-collapse-' + index" v-if="votes.target != 'Not Voting'" class="d-flex justify-content-between align-items-center">
+          {{ votes.target }}
+          <b-badge variant="danger" pill>{{ votes.voted.length }}</b-badge>
+        </b-list-group-item>
+        <b-collapse class="highlight-vote-wrapper" :id="'highlight-collapse-'+ index">
+          <b-card>
+            <ul>
+              <li v-for="(player) in votes.voted" :key="player.postID">
+                <b-link v-if="player.postID" :href="removePostID(highlight.day_url)+'/'+player.postID">{{ player.voter }}</b-link>
+                <span v-else>{{ player.voter }} </span>
+              </li>
+            </ul>
+          </b-card>
+        </b-collapse>
+        <b-list-group-item v-b-toggle="'highlight-collapse-nv'" v-if="notVoting && (index+1) == voteCounts.length" class="d-flex justify-content-between align-items-center">
+          {{ "Not Voting" }}
+          <b-badge variant="danger" pill>{{ notVotingArray.length }}</b-badge>
+        </b-list-group-item>
+        <b-collapse class="highlight-vote-wrapper" :id="'highlight-collapse-nv'" v-if="notVoting && (index+1) == voteCounts.length">
+          <b-card>
+            <ul>
+              <li v-for="(player) in notVotingArray" :key="player.postID">
+                {{ player.voter }}
+              </li>
+            </ul>
+          </b-card>
+        </b-collapse>
       </b-list-group>
     </b-jumbotron>
     <b-tabs content-class="mt-3">
@@ -148,32 +149,41 @@ export default {
       this.highlight.votes.forEach((item) => {
         if(item.vote == null){
           item.vote = "Not Voting"
-          this.notVoting = true;
+          this.notVoting = true
         }
-        if(!counted.includes(item.vote)){
-          counted.push(item.vote)
-          let temp = {}
-          temp.vote = item.vote
-          temp.voters = []
-          this.highlight.votes.forEach((item) => {
-            if(item.vote == null){
-              item.vote = "Not Voting"
-            }
-            if(item.vote == temp.vote){
-              temp.voters.push(item.voter)
+        if(!counted.includes(item.voter)){
+          counted.push(item.voter)
+          let voted = false
+          voteCounts.forEach((currentVote) =>{
+            if( currentVote.target == item.vote){
+                let vote = {
+                  voter: item.voter,
+                  postID: item.vote_post
+                }
+                currentVote.voted.push(vote);
+                voted == true
             }
           });
-          if(temp.vote == "Not Voting"){
-            this.notVotingArray = temp.voters;
-          }
-          else{
-            voteCounts.push(temp)
+          if( voted == false){
+            let newTarget = {}
+            newTarget.target = item.vote
+            newTarget.voted = []
+            let vote = {
+              voter: item.voter,
+              postID: item.vote_post
+            }
+            newTarget.voted.push(vote)
+            voteCounts.push(newTarget)
           }
         }
       });
-
+      voteCounts.forEach((item) => {
+        if(item.target == "Not Voting"){
+          this.notVotingArray = item.voted
+        }
+      });
       return voteCounts.sort(function(a,b,){
-        return b.voters.length - a.voters.length
+        return b.voted.length - a.voted.length
       });
     }
   },
@@ -187,8 +197,12 @@ export default {
   mounted () {
   axios
     .get('https://api.namafia.com/getGames')
+
     .then(response => {
+
       this.games = response.data
+
+      // Return the highlighted game which is the highest game ID that is active.
       let highlightedGame = response.data.filter(function(game) {
         // This returns only games whose status is true i.e Complete
         return game.status == false
@@ -214,7 +228,6 @@ export default {
       this.errored = true
     })
     .finally(() => this.loading = false)
-}
-
+  }
 }
 </script>
